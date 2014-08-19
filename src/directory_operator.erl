@@ -43,7 +43,6 @@ operator(_Dir, _Func) ->
 
 
 operator_producer([], []) ->
-	io:format(">>>>>>>> ~p~n", [{?MODULE, ?LINE, "out"}]),
 	down;
 operator_producer(Workers, Targets) ->
 	receive
@@ -52,13 +51,14 @@ operator_producer(Workers, Targets) ->
 			operator_producer(Workers, FilterDirs);
 		{next, Pid} ->
 			case Targets of
-				[] -> Pid ! empty;
+				[] ->
+					Pid ! empty,
+					Rest = [];
 				[Directory|Rest] ->
-					Pid ! {directory, Directory},
-					operator_producer(Workers, Rest)
-			end;
+					Pid ! {directory, Directory}
+			end,
+			operator_producer(Workers, Rest);
 		{'EXIT', From, _Reason} ->
-			io:format(">>>>>>>> ~p~n", [{?MODULE, ?LINE, From, _Reason}]),
 			operator_producer(lists:delete(From, Workers), Targets)
 	end.
 
@@ -69,11 +69,10 @@ operator_worker(Parent, Func) ->
 		{directory, Directory} ->
 			{ok, DirContents} = file:list_dir(Directory),
 			Dirs = do_func_in_files(DirContents, Directory, Func, []),
-			io:format(">>>>> ~p~n", [{?MODULE, ?LINE, Dirs}]),
 			Parent ! {directory, Dirs},
 			operator_worker(Parent, Func);
 		empty ->
-			ok
+			operator_worker(Parent, Func)
 	end.
 
 
@@ -100,7 +99,7 @@ merge_dirs([Dir|Tail], Targets) ->
 		true ->
 			merge_dirs(Tail, Targets);
 		false ->
-			merge_dirs(Tail, [Targets|Dir])
+			merge_dirs(Tail, Targets++[Dir])
 	end;
 merge_dirs([], Targets) ->
 	Targets.
