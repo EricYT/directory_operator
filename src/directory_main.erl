@@ -15,5 +15,6 @@
 main([]) ->
 	todo;
 main(Options) when is_list(Options) ->
+	ParseOptions = option_util:parse(Options),
 	todo.
 
