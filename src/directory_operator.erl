@@ -10,7 +10,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([operator/2]).
+-export([operator/2, operator_worker/2]).
 
 -compile({inline, [if_do/3]}).
 if_do(true, G1, _G2) ->
@@ -29,12 +29,12 @@ operator(Directory, Func) when is_function(Func, 1) ->
 		true ->
 			erlang:process_flag(trap_exit, true),
 			Self = self(),
+			erlang:register(producer, Self),
 			Jobs = lists:seq(1, 5),		%% Get Jobs from options
 			Workers = [erlang:spawn_link(?MODULE, operator_worker, [Self, Func])||
 						 _Index<-Jobs],
 			DirRemoveSlash = string:strip(Directory, right, $/),
-			operator_producer(Workers, [DirRemoveSlash]),
-			ok;
+			operator_producer(Workers, [DirRemoveSlash]);
 		false ->
 			exit(io_lib:format("Not found Direcotry:~p", [Directory]))
 	end;
@@ -43,6 +43,7 @@ operator(_Dir, _Func) ->
 
 
 operator_producer([], []) ->
+	io:format(">>>>>>>> ~p~n", [{?MODULE, ?LINE, "out"}]),
 	down;
 operator_producer(Workers, Targets) ->
 	receive
@@ -57,26 +58,41 @@ operator_producer(Workers, Targets) ->
 					operator_producer(Workers, Rest)
 			end;
 		{'EXIT', From, _Reason} ->
+			io:format(">>>>>>>> ~p~n", [{?MODULE, ?LINE, From, _Reason}]),
 			operator_producer(lists:delete(From, Workers), Targets)
 	end.
 
 
 operator_worker(Parent, Func) ->
-	Parent ! next,
+	Parent ! {next, self()},
 	receive
 		{directory, Directory} ->
-			DirContents = file:list_dir(Directory),
-			do_func_in_files(DirContents, Func),
+			{ok, DirContents} = file:list_dir(Directory),
+			Dirs = do_func_in_files(DirContents, Directory, Func, []),
+			io:format(">>>>> ~p~n", [{?MODULE, ?LINE, Dirs}]),
+			Parent ! {directory, Dirs},
 			operator_worker(Parent, Func);
 		empty ->
 			ok
 	end.
 
 
-do_func_in_files([], _Func) ->
-	ok;
-do_func_in_files([FileOrDir|Rest], Func) ->
-	todo.
+do_func_in_files([], _ParentDir, _Func, Dirs) ->
+	lists:reverse(Dirs);
+do_func_in_files([FileOrDir|Rest], ParentDir, Func, Dirs) ->
+	FullPathFileOrDir = filename:join(ParentDir, FileOrDir),
+	case filelib:is_regular(FullPathFileOrDir) of
+		true ->
+			Func(io_lib:format("~s~n", [FullPathFileOrDir])),
+			do_func_in_files(Rest, ParentDir, Func, Dirs);
+		false ->
+			case filelib:is_dir(FullPathFileOrDir) of
+				true ->
+					do_func_in_files(Rest, ParentDir, Func, [FullPathFileOrDir|Dirs]);
+				false ->
+					do_func_in_files(Rest, ParentDir, Func, Dirs)
+			end
+	end.
 
 
 merge_dirs([Dir|Tail], Targets) ->
