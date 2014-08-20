@@ -1,5 +1,5 @@
 %% @author Eric.yutao
-%% @doc @todo Add description to directory_operator.
+%% @doc @todo Bad design, producer's behaviour is affected by customer
 
 
 -module(directory_operator).
