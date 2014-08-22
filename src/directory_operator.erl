@@ -104,3 +104,5 @@ merge_dirs([Dir|Tail], Targets) ->
 merge_dirs([], Targets) ->
 	Targets.
 
+walk_th
+
