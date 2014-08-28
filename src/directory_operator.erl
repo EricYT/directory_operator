@@ -10,7 +10,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([operator/2, operator_worker/2]).
+-export([operator/2, operator_worker/2, trave_directory/1]).
 
 -compile({inline, [if_do/3]}).
 if_do(true, G1, _G2) ->
@@ -94,6 +94,38 @@ do_func_in_files([FileOrDir|Rest], ParentDir, Func, Dirs) ->
 	end.
 
 
+-spec trave_directory(Dir::list()) -> list() | false.
+trave_directory(Dir) when is_list(Dir) ->
+	case filelib:is_dir(Dir) of
+		true ->
+			case file:list_dir(Dir) of
+				{ok, ContentFiles} ->
+					trave_directorys(ContentFiles, Dir, []);
+				{error, Error} ->
+					Error
+			end;
+		false ->
+			false
+	end;
+trave_directory(_) ->
+	false.
+
+
+trave_directorys([], _ParentDir, AccFiles) ->
+	lists:reverse(AccFiles);
+trave_directorys([FileOrDir|Tail], ParentDir, AccFiles) ->
+	FullName = filename:join(ParentDir, FileOrDir),
+	case filelib:is_regular(FullName) of
+		true ->
+			trave_directorys(Tail, ParentDir, [FullName|AccFiles]);
+		false ->
+			{ok, AllContent} = file:list_dir(FullName),
+			WalkRes = trave_directorys(AllContent, FullName, []),
+			trave_directorys(Tail, ParentDir, WalkRes++AccFiles)
+	end.
+
+
+
 merge_dirs([Dir|Tail], Targets) ->
 	case lists:member(Dir, Targets) of
 		true ->
@@ -103,6 +135,3 @@ merge_dirs([Dir|Tail], Targets) ->
 	end;
 merge_dirs([], Targets) ->
 	Targets.
-
-walk_th
-
