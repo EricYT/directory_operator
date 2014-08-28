@@ -56,6 +56,7 @@ operator_producer(Workers, Targets) ->
 					operator_producer(Workers, Rest)
 			end;
 		{'EXIT', From, _Reason} ->
+			io:format(">>>>> ~p~n", [{?MODULE, ?LINE, From}]),
 			operator_producer(lists:delete(From, Workers), Targets)
 	end.
 
