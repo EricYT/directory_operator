@@ -33,8 +33,8 @@ operator(Directory, Func) when is_function(Func, 1) ->
 			Jobs = lists:seq(1, 5),		%% Get Jobs from options
 			Workers = [erlang:spawn_link(?MODULE, operator_worker, [Self, Func])||
 						 _Index<-Jobs],
-			DirRemoveSlash = string:strip(Directory, right, $/),
-			operator_producer(Workers, [DirRemoveSlash]);
+			AllFiles = trave_directory(Directory),
+			operator_producer(Workers, AllFiles);
 		false ->
 			exit(io_lib:format("Not found Direcotry:~p", [Directory]))
 	end;
@@ -46,18 +46,15 @@ operator_producer([], []) ->
 	down;
 operator_producer(Workers, Targets) ->
 	receive
-		{directory, Dirs} ->
-			FilterDirs = merge_dirs(Dirs, Targets),
-			operator_producer(Workers, FilterDirs);
 		{next, Pid} ->
 			case Targets of
 				[] ->
 					Pid ! empty,
-					Rest = [];
-				[Directory|Rest] ->
-					Pid ! {directory, Directory}
-			end,
-			operator_producer(Workers, Rest);
+					operator_producer(Workers, Targets);
+				[Content|Rest] ->
+					Pid ! {content, Content},
+					operator_producer(Workers, Rest)
+			end;
 		{'EXIT', From, _Reason} ->
 			operator_producer(lists:delete(From, Workers), Targets)
 	end.
@@ -66,13 +63,11 @@ operator_producer(Workers, Targets) ->
 operator_worker(Parent, Func) ->
 	Parent ! {next, self()},
 	receive
-		{directory, Directory} ->
-			{ok, DirContents} = file:list_dir(Directory),
-			Dirs = do_func_in_files(DirContents, Directory, Func, []),
-			Parent ! {directory, Dirs},
+		{content, Content} ->
+			Func(io_lib:format("~s~n", [Content])),
 			operator_worker(Parent, Func);
 		empty ->
-			operator_worker(Parent, Func)
+			ok
 	end.
 
 
@@ -94,7 +89,7 @@ do_func_in_files([FileOrDir|Rest], ParentDir, Func, Dirs) ->
 	end.
 
 
--spec trave_directory(Dir::list()) -> list() | false.
+-spec trave_directory(Dir::list()) -> list().
 trave_directory(Dir) when is_list(Dir) ->
 	case filelib:is_dir(Dir) of
 		true ->
@@ -102,13 +97,14 @@ trave_directory(Dir) when is_list(Dir) ->
 				{ok, ContentFiles} ->
 					trave_directorys(ContentFiles, Dir, []);
 				{error, Error} ->
-					Error
+					io:format(">>>>>>>> Error ~p~n", [{?MODULE, ?LINE, Error}]),
+					[]
 			end;
 		false ->
-			false
+			[]
 	end;
 trave_directory(_) ->
-	false.
+	[].
 
 
 trave_directorys([], _ParentDir, AccFiles) ->
