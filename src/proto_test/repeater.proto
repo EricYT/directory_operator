@@ -1,5 +1,12 @@
 package repeater;
 
+message msg_header{
+	enum MSG_ID{
+	msg_init_s2c = 1;
+	msg_init_module_complete_c2s = 2;  //erl:login_pb
+	}
+}
+
 message Person {
 	required string name = 1;
 	required string address = 2;

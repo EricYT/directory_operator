@@ -14,8 +14,31 @@
 parse_file(File) when is_list(File) ->
 	{ok, FileBinary} = file:read_file("../src/proto_test/repeater.proto"),
 	ScanContent = scan(binary_to_list(FileBinary)),
-	io:format(">> ~p~n", [{?MODULE, ?LINE, ScanContent}]),
+	Res = parse(ScanContent),
+	io:format(">> ~p~n", [{?MODULE, ?LINE, Res}]),
 	ok.
+
+parse(Data) -> parse(Data, []).
+
+%% @hidden
+parse([], Acc) -> lists:reverse(Acc);
+parse([{'}', _Line} | Tail], Acc) -> {Acc, Tail};
+parse([{enum, _Line}, {bareword, _Line, MessageName}, {'{', _Line} | Tail], Acc) ->
+    {Res, Tail2} = parse(Tail, []),
+    parse(Tail2, [{enum, MessageName, lists:reverse(Res)} | Acc]);
+parse([{message, _Line}, {bareword, _Line, MessageName}, {'{', _Line} | Tail], Acc) ->
+    {Res, Tail2} = parse(Tail, []),
+    parse(Tail2, [{message, MessageName, lists:reverse(Res)} | Acc]);
+parse([{bareword, _Line, FieldName}, {'=', _Line}, {number, _Line, Value}, {';', _Line} | Tail], Acc) ->
+    parse(Tail, [{enum, Value, FieldName} | Acc]);
+parse([{Type, _Line}, {bareword, _Line, Field}, {bareword, _Line, FieldName}, {'=', _Line}, {FieldType, _Line, Position}, {'[', _Line}, {bareword, _Line,"default"}, {'=', _Line}, {_DefaultType, _Line, Default}, {']', _Line}, {';', _Line} | Tail], Acc) ->
+    parse(Tail, [{Position, Type, Field, FieldName, FieldType, Default} | Acc]);
+parse([{Type, _Line}, {bareword, _Line, Field}, {bareword, _Line, FieldName}, {'=', _Line}, {FieldType, _Line, Position}, {';', _Line} | Tail], Acc) ->
+    parse(Tail, [{Position, Type, Field, FieldName, FieldType, none} | Acc]);
+parse([{'$end', _} | Tail], Acc) ->
+    parse(Tail, Acc);
+parse([Head | Tail], Acc) ->
+    parse(Tail, [Head | Acc]).
 
 scan(File) when is_list(File) ->
 	scan(File, [], 1).
@@ -71,6 +94,8 @@ scan([C|_]=String, Accum, Line) when
 					{bareword, Line, BareWord}
 			end,
 	scan(Rest, [Token|Accum], Line);
+scan([], Accum, Line) ->
+	lists:reverse([{'$end', Line}|Accum]);
 scan([C|_], _Accum, Line) ->
     erlang:error({invalid_character, [C], Line}).
 
@@ -86,7 +111,9 @@ scan_number(String) ->
 			{list_to_float(integer_to_list(A)++".0e"++integer_to_list(B)), Rest};
 		[$x|Rest1] when A =:= 0 ->
 			{B, Rest}=scan_integer(Rest1),
-			{list_to_integer(B, 16), Rest}
+			{list_to_integer(B, 16), Rest};
+		_Other ->
+			{A, Result}
 	end.
 
 scan_integer(String) ->
@@ -96,7 +123,7 @@ scan_integer([D|Rest], Acc) when
   D >= $0, D =< $9 ->
 	scan_integer(Rest, Acc*10+(D - $0));
 scan_integer(Rest, Acc) ->
-	{Rest, Acc}.
+	{Acc, Rest}.
 
 
 scan_identifier(String) ->
