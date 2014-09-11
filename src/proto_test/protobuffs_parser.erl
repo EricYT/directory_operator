@@ -41,6 +41,20 @@ scan([Digit|_Rest]=String, Accum, Line) when
   Digit >= $0, Digit =< $9 ->
 	{Number, Rest} = scan_number(String),
 	scan(Rest, [{number, Line, Number}|Accum], Line);
+scan([$-, Digit|_Rest]=String, Accum, Line) when
+  Digit >= $0, Digit =< $9 ->
+	{Number, Rest} = scan_number(tl(String)),
+	scan(Rest, [{number, Line, -Number}|Accum], Line);
+scan([$\n|Rest], Accum, Line) ->
+	scan(Rest, Accum, Line+1);
+scan([C|Rest], Accum, Line) when
+  C =:= 32; C =:= $\t ->
+	scan(Rest, Accum, Line);
+scan([$/, $/|Rest], Accum, Line) ->
+	scan(skip_to_newline(Rest), Accum, Line);
+scan([$/, $*|Rest], Accum, Line) ->
+	{RestString, Line1}=skip_comment(Rest, Line),
+	scan(RestString, Accum, Line1);
 
 
 scan([C|_], _Accum, Line) ->
@@ -85,7 +99,17 @@ scan_identifier(Rest, Acc) ->
 	{lists:reverse(Acc), Rest}.
 
 
+skip_to_newline([$\n|Rest]) ->
+	Rest;
+skip_to_newline([]) ->
+	[];
+skip_to_newline([_C|Rest]) ->
+	skip_to_newline(Rest).
 
-
-
+skip_comment([$*, $/|Rest], Line) ->
+	{Rest, Line};
+skip_comment([$\n|Rest], Line) ->
+	skip_comment(Rest, Line+1);
+skip_comment([_C|Rest], Line) ->
+	skip_comment(Rest, Line).
 
