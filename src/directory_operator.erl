@@ -2,6 +2,9 @@
 %% @doc @todo Bad design, producer's behaviour is affected by customer
 
 
+%% The test file on mac
+
+
 -module(directory_operator).
 
 -define(DIR_LIST, directory_list).
