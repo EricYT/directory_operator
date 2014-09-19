@@ -14,6 +14,7 @@
 parse_file(File) when is_list(File) ->
 	{ok, FileBinary} = file:read_file("../src/proto_test/repeater.proto"),
 	ScanContent = scan(binary_to_list(FileBinary)),
+	io:format(">> ~p~n", [{?MODULE, ?LINE, ScanContent}]),
 	Res = parse(ScanContent),
 	io:format(">> ~p~n", [{?MODULE, ?LINE, Res}]),
 	ok.
@@ -29,10 +30,16 @@ parse([{enum, _Line}, {bareword, _Line, MessageName}, {'{', _Line} | Tail], Acc)
 parse([{message, _Line}, {bareword, _Line, MessageName}, {'{', _Line} | Tail], Acc) ->
     {Res, Tail2} = parse(Tail, []),
     parse(Tail2, [{message, MessageName, lists:reverse(Res)} | Acc]);
+parse([{bareword, _Line, FieldName}, {'=', _Line}, {number, _Line, Value}, {';', _Line}, {comment, _Line, Comment} | Tail], Acc) ->
+    parse(Tail, [{enum, Value, FieldName, Comment} | Acc]);
 parse([{bareword, _Line, FieldName}, {'=', _Line}, {number, _Line, Value}, {';', _Line} | Tail], Acc) ->
     parse(Tail, [{enum, Value, FieldName} | Acc]);
+parse([{Type, _Line}, {bareword, _Line, Field}, {bareword, _Line, FieldName}, {'=', _Line}, {FieldType, _Line, Position}, {'[', _Line}, {bareword, _Line,"default"}, {'=', _Line}, {_DefaultType, _Line, Default}, {']', _Line}, {';', _Line}, {comment, _Line, _Comment} | Tail], Acc) ->
+    parse(Tail, [{Position, Type, Field, FieldName, FieldType, Default} | Acc]);
 parse([{Type, _Line}, {bareword, _Line, Field}, {bareword, _Line, FieldName}, {'=', _Line}, {FieldType, _Line, Position}, {'[', _Line}, {bareword, _Line,"default"}, {'=', _Line}, {_DefaultType, _Line, Default}, {']', _Line}, {';', _Line} | Tail], Acc) ->
     parse(Tail, [{Position, Type, Field, FieldName, FieldType, Default} | Acc]);
+parse([{Type, _Line}, {bareword, _Line, Field}, {bareword, _Line, FieldName}, {'=', _Line}, {FieldType, _Line, Position}, {';', _Line}, {comment, _Line, _Comment} | Tail], Acc) ->
+    parse(Tail, [{Position, Type, Field, FieldName, FieldType, none} | Acc]);
 parse([{Type, _Line}, {bareword, _Line, Field}, {bareword, _Line, FieldName}, {'=', _Line}, {FieldType, _Line, Position}, {';', _Line} | Tail], Acc) ->
     parse(Tail, [{Position, Type, Field, FieldName, FieldType, none} | Acc]);
 parse([{'$end', _} | Tail], Acc) ->
@@ -75,7 +82,9 @@ scan([C|Rest], Accum, Line) when
   C =:= 32; C =:= $\t ->
 	scan(Rest, Accum, Line);
 scan([$/, $/|Rest], Accum, Line) ->
-	scan(skip_to_newline(Rest), Accum, Line);
+	{Comment, Rest1} = scan_identifier1(Rest, []),
+	scan(Rest1, [{comment, Line, Comment}|Accum], Line);
+%% 	scan(skip_to_newline(Rest), Accum, Line);
 scan([$/, $*|Rest], Accum, Line) ->
 	{RestString, Line1}=skip_comment(Rest, Line),
 	scan(RestString, Accum, Line1);
@@ -186,6 +195,21 @@ scan_string([$\n|Rest], Accum, Line) ->
     scan_string(Rest, [$\n|Accum], Line + 1);
 scan_string([Char|Rest], Accum, Line) ->
     scan_string(Rest, [Char|Accum], Line).
+
+
+scan_identifier1([C|Rest], []) when
+  C =:= 32; C =:= $\t ->
+	scan_identifier1(Rest, []);
+scan_identifier1([C|Rest], Acc) when
+	C >= $0, C =< $9;
+	C >= $a, C =< $z;
+	C >= $A, C =< $Z;
+	C =:= $:; C =:= 32;
+	C =:= $_ ->
+	scan_identifier1(Rest, [C|Acc]);
+scan_identifier1([$\n|_]=Rest, Acc) ->
+	{lists:reverse(string:strip(Acc, left, 32)), Rest}.
+
 
 
 get_keyword("import") ->

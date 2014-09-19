@@ -14,7 +14,7 @@ message msg_header{
 message Person {
 	required string name = 1 [ default="niaho"];
 	required string address = 2;
-	required string phone_number = 3;
+	required string phone_number = 3; // comment test
 	required int32 age = 4;
 	repeated string hobbies = 5;
 	repeated Location locations = 6;
@@ -22,5 +22,5 @@ message Person {
 
 message Location {
     required string region = 1;
-    required string country = 2;
+    required string country = 2; //comment
 }
