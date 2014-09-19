@@ -8,4 +8,4 @@
 -record(message, {message_name, columns}).
 
 %%
--record(enum, {id, message_head}).
+-record(enum, {id, message_head, process_func}).
