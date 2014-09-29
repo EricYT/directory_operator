@@ -1,5 +1,5 @@
 %% @author Eric.yutao
-%% @doc @todo Add description to protobuffs_parser.
+%% @doc @todo The file is for proto,copy and modify from google proto buffers.
 
 
 -module(protobuffs_parser).
